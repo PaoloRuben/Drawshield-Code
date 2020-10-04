@@ -63,6 +63,7 @@
         );
    
    $this->patterns[languageDB::CHARGE] = array (
+       array ( '<.*?>', 'special/url'),
       // cross
       array ( 'calvary cross(es)?', 'cross/calvary' ),
       array ( '?(saint|st) florians? cross(es)?', 'quadrate/cross-florian' ),
