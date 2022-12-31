@@ -25,7 +25,7 @@ function getSvgTreatment ($filename) {
   }
   $retval['height'] = floatval($svg['height']);
   $retval['width'] = floatval($svg['width']);
-  @$metadata = $svg->xpath('//cc:Agent/dc:title');
+  $metadata = @$svg->xpath('//cc:Agent/dc:title');
   if ( is_array($metadata) and count($metadata) > 0) {
     $messages->addMessage('licence', $metadata[0]);
   }
@@ -89,7 +89,7 @@ function makeTreatment ( $node, $layout, $counter = false ) {
         }
   }
   // Do we need to offset to make treatment symmetrical on the field?
-  $offset = intval((1000 % $size_x) / 2);
+  $offset = (1000 % intval($size_x) / 2);
   if (in_array($name, array('gingham', 'buffalo-check', 'glen-check', 'houndstooth', 'shepherd-check'))) $offset += intval($size_x / 4);
   $retval = array ( 'width' =>  $size_x, 'height' => $size_y, 'offset' => $offset,
       'body' => $base . '<g stroke-width="2" stroke="' . rgb('pattern-stroke') . '" >' .$pattern . '</g>' );
@@ -151,7 +151,7 @@ function makeGrady( $node ) {
   $background = $charge = null;
   foreach ( $children as $child ) {
     if ( $child->nodeName == 'tincture' ) {
-      if ($child->firstChild->nodeName == 'colour') {
+      if ($child->hasChildNodes() && $child->firstChild->nodeName == 'colour') {
         $colours[] = $child->firstChild->getAttribute("keyterm");
       } else {
         $messages->addMessage('blazon',"Grady tinctures must be colours");

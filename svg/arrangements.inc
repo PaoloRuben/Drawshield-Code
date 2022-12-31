@@ -95,10 +95,64 @@ function adjustDistance($item, $placement) {
   return $placement;
 }
 
+/*
+
+an armorial roll
+with title "Please mark orle positions from 3? 4? to 10 on each shield"
+consisting of
+drawn in a heater shape cendree an orle argent a grid sable
+caption "Heater"
+then
+drawn in a french shape cendree an orle argent a grid sable
+caption "French"
+then 
+drawn in an oval shape cendree an orle argent a grid sable
+caption "Oval"
+then 
+drawn in a lozenge shape cendree an orle argent a grid sable
+caption "Lozenge"
+then
+drawn in a square shape cendree an orle argent a grid sable
+caption "Square"
+then 
+drawn in an italian shape cendree an orle argent a grid sable
+caption "Italian"
+then 
+drawn in a swiss shape cendree an orle argent a grid sable
+caption "Swiss"
+then 
+drawn in a german shape cendree an orle argent a grid sable
+caption "German"
+then
+drawn in a african shape cendree an orle argent a grid sable
+caption "African"
+then
+drawn in a polish shape cendree an orle argent a grid sable
+caption "Polish"
+then
+drawn in a spanish shape cendree an orle argent a grid sable
+caption "Spanish"
+then
+drawn in an SCA shape cendree an orle argent a grid sable
+caption "SCA"
+then
+drawn in a hungarian shape cendree an orle argent a grid sable
+caption "Hungarian"
+skip
+then
+drawn in a english shape cendree an orle argent a grid sable
+caption "English"
+*/
+
 function inOrle($layout, $number) {
        global $messages;
 
        static $orles = array (
+           'heater-5' => '////160,140,140,140:840,140:860,620:500,1070:130,620',
+           'french-5' => '////160,140,140,140:840,140:860,560:500,990:130,560',
+           'oval-5' => '////370,220,140,140:630,220:810,570:500,980:190,570',
+           'lozenge-5' => '////320,300,140,140:680,300:720,700:500,800:280,700',
+           'square-5' => '////220,140,140,140:780,140:860,560:500,860:140,560',
         'heater-11' => '///////////500,100,100,100:100,650:900,650:500,1050:100,100:900,100:100,400:900,400:200,900:800,900:300,100:700,100',
            'heater-12' => '///////////500,100,100,100:100,650:900,650:500,1050:100,100:900,100:100,400:900,400:200,900:800,900:300,100:700,100',
        );
@@ -115,7 +169,7 @@ function inOrle($layout, $number) {
        return 'x';
 }
 
-function inAnnulo($number, $box, $layout)
+function inAnnulo($number, $box, $layout, $arc = "full")
 {
     if ( $layout->size == $box->size )
     {
@@ -128,12 +182,33 @@ function inAnnulo($number, $box, $layout)
 
     $radius = min($box->size->height, $box->size->width) / 2;
 
-    $angle = 0;
-    $turn = 360 / $number;
+    $sizeLimit = 160;
+    $turn = 180 / ($number -1);
+    switch($arc) {
+        case "upper":
+            $angle = -90;
+            break;
+        case "lower":
+            $angle = 90;
+            break;
+        case "sinister":
+            $angle = 0;
+            break;
+        case "dexter":
+            $angle = -180;
+            break;
+        default:
+        case "full":
+            $angle = 0;
+            $turn = 360 / $number;
+            $sizeLimit = 200;
+            break;
+    }
     // Make size dependent on circumference && number
     $size = intval(($radius * M_PI) / ($number * 0.9));
-    if ($size > 150)
-        $size = 200;
+    $size = min($size, $sizeLimit);
+    // if ($size > 150)
+      //   $size = 200;
 
     $radius -= $size / 2;
 
@@ -204,7 +279,7 @@ function placement_from_ordinary($ordinary_file, $boundingBox, $layout)
     return $ordinary['chargesOn'];
 }
 
-function placement_chevron(ShieldLayout $layout, $chev_width, $relative_size)
+function placement_chevron(ShieldLayout $layout, $chev_width, $relative_size, $node)
 {
     $placement = [];
     $plac_size = $chev_width * $relative_size;
@@ -303,6 +378,33 @@ function placement_pilewise($boundingBox)
     return array_to_placement($placement_arr);
 }
 
+function placement_quadruplet($boundingBox, $layout)
+{
+    $center = $layout->cross_point;
+
+
+    $size = $boundingBox->size->scaled(.4);
+    $halfX = $size->width / 2;
+    $halfY = $size->height / 2;
+    $quarterX = $halfX / 2;
+    $quarterY = $halfY / 2;
+
+    $cross = [
+        new ShieldRect($center->translated(0, -$quarterY), $size),
+        new ShieldRect($center->translated($quarterX, 0), $size),
+        new ShieldRect($center->translated(0, $quarterY), $size),
+        new ShieldRect($center->translated(-$quarterX, 0), $size),
+    ];
+
+    return array_to_placement([
+        [],
+        [],
+        [],
+        $cross,
+        [],
+    ]);
+}
+
 function placement_quadrangle($boundingBox, $layout)
 {
     $center = $layout->cross_point;
@@ -366,6 +468,18 @@ function adjustment_quarter($number, ShieldLayout $layout, $bigOrdinary)
 function adjustment_from_position($position, $layout, $underlying_div, $bigOrdinary, $cadency, $item)
 {
     global $messages;
+    $height3rd = $layout->size->height / 3;
+    $height6th = $height3rd / 2;
+    $width3rd = $layout->size->width / 3;
+    $width6th = $width3rd / 2;
+    $width2th = $layout->size->width / 2;
+    $height2th = $layout->size->height / 2;
+    if ($cadency) {
+        // make things smaller if they are just for marking cadency
+        $width3rd = $width6th;
+        $height3rd = $height6th;
+    }
+    $margin = max($height2th, $width2th) / 5;
 
     switch ( $position )
     {
@@ -387,6 +501,7 @@ function adjustment_from_position($position, $layout, $underlying_div, $bigOrdin
                         adjustment_quarter(3, $layout, false),
                         adjustment_quarter(4, $layout, false),
                     ];
+                    // TODO replace all of this as per the examples below to account for shield size
                 case 'tierced-in-pale':
                     return ['50,100,233,1000', '383,100,233,1000', '716,100,233,1000'];
                 case 'tierced-in-fess':
@@ -485,37 +600,93 @@ function adjustment_from_position($position, $layout, $underlying_div, $bigOrdin
                 new ShieldRect(new ShieldPos(170, $layout->cross_point->y), new ShieldSize(300, 300)),
                 new ShieldRect(new ShieldPos($layout->size->width - 170, $layout->cross_point->y), new ShieldSize(300, 300))
             ];
-        case 'indexchief': return [($cadency) ? '0,0,200,200' : '0,0,350,300'];
-        case 'insinchief': return [($cadency) ? '800,0,200,200' : '650,0,350,300'];
-        case 'inmidchief': return [($cadency) ? '400,0,200,200' : '300,0,400,400'];
-        case 'indexbase': return [($cadency) ? '200,800,200,200' :
+        case 'indexchief': return [
             new ShieldRect(
-                new ShieldPos($layout->size->width/4, $layout->size->height - 300),
-                new ShieldSize(300, 300)
-            )
-        ];
-        case 'insinbase': return [($cadency) ? '600,800,200,200' :
+                new ShieldPos($width6th, $height6th),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'insinchief': return   [
             new ShieldRect(
-                new ShieldPos($layout->size->width*3/4, $layout->size->height - 300),
-                new ShieldSize(300, 300)
-            )];
-        case 'inmidbase': return [($cadency) ? '400,800,200,200' :
+                new ShieldPos($layout->size->width - $width6th, $height6th),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'inmidchief': return [ 
             new ShieldRect(
-                new ShieldPos($layout->size->width/2, $layout->size->height - 300),
-                new ShieldSize(300, 300)
-            )];
-        case 'inabyss': return [];
-        case 'inhonpoint': return [($cadency) ? '400,250,200,200' : '250,50,500,500'];
-        case 'infesspoint':
-            $size = $cadency ? 400 : 600;
-            return [new ShieldRect(clone $layout->cross_point, new ShieldSize($size, $size))];
-        case 'innombril': return [($cadency) ? '400,800,200,200' : '300,600,400,400'];
-        case 'insinflank': return [($cadency) ? '800,500,200,200' : '700,375,300,300'];
-        case 'indexflank': return [($cadency) ? '0,500,200,200' : '0,375,300,300'];
-        case 'insinside': return ['550,50,400,900'];
-        case 'indexside': return ['50,50,400,900'];
-        case 'inupperhalf': return ['50,50,900,400'];
-        case 'inlowerhalf': return ['50,550,900,400'];
+                new ShieldPos($width2th, $height6th),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'indexbase':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width6th, $height2th + $height3rd),
+                    new ShieldSize($width3rd, $height3rd)
+                ) ];
+        case 'insinbase':
+            return   [
+                new ShieldRect(
+                    new ShieldPos($layout->size->width - $width6th, $height2th + $height3rd),
+                    new ShieldSize($width3rd, $height3rd)
+                ) ];
+        case 'inmidbase':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width2th, $height2th + $height3rd),
+                    new ShieldSize($width3rd, $height3rd)
+                ) ];
+        case 'inhonpoint': return [
+            new ShieldRect(
+                new ShieldPos($width2th, $height3rd),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'inabyss':  // flow through
+        case 'infesspoint': return [
+            new ShieldRect(
+                new ShieldPos($width2th, $height2th),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'innombril':return [
+            new ShieldRect(
+                new ShieldPos($width2th,2 * $height3rd),
+                new ShieldSize($width3rd, $height3rd)
+            ) ];
+        case 'insinflank':
+            return   [
+                new ShieldRect(
+                    new ShieldPos($layout->size->width - $width6th, $height2th),
+                    new ShieldSize($width3rd, $height3rd)
+                ) ];
+        case 'indexflank':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width6th, $height2th),
+                    new ShieldSize($width3rd, $height3rd)
+                ) ];
+        case 'insinside':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width2th * 1.5, $height2th),
+                    new ShieldSize($width2th - $margin, $layout->size->height - $margin)
+                ) ];
+        case 'indexside':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width2th * 0.5, $height2th),
+                    new ShieldSize($width2th - $margin, $layout->size->height - $margin)
+                ) ];
+        case 'inupperhalf':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width2th, $height2th / 2),
+                    new ShieldSize($layout->size->width - $margin, $height2th - $margin)
+                ) ];
+        case 'inlowerhalf':
+            return [
+                new ShieldRect(
+                    new ShieldPos($width2th, $height2th * 1.5),
+                    new ShieldSize($layout->size->width - $margin, $height2th - $margin)
+                ) ];
+            // TODO All of the following should be like the above, so that it takes account of the actual
+            // size of the shield
         case 'infirst':
             switch ( $underlying_div ) {
                 case 'tierced-in-pale': return ['50,100,233,1000'];
@@ -738,10 +909,18 @@ function get_placement(DOMElement $item, $layout) {
           } elseif ( $xpath->evaluate("boolean(parent::modifier/parent::charge/modifier[@keyterm='arrangement'])",$item) ) {
             $placement = 'i';        
           } else { // Arrange on an open field
-            if ( substr($item->parentNode->parentNode->getAttribute('keyterm'),0,8) == 'quadrate' ) // Special placement for items around a quadrate cross
-              $placement = '///300,300,160,160:700,300,160,160:300,700:700,700';
-            else
-              $placement = 'x/125,500,200,800:875,500/250,200,300,280:750,200,300,280:500,1000/250,200,280,280:750,200,280,280:250,900:750,900/250,200,240,240:750,200,240,240:500,200:250,900:750,900';
+            if ( substr($item->parentNode->parentNode->getAttribute('keyterm'),0,8) == 'quadrate' ) {// Special placement for items around a quadrate cross
+                $placement = '////300,380,160,160:700,380,160,160:300,750:700,750:500,980/';
+            } else {
+                if (existModifierWithKeyterm($item,'facing-out')) {
+                    $placement = 'x/125,500,200,800:875,500,200,800,0,0,1/x/250,200,280,280:750,200,280,280,0,0,1:250,900,280,280,0,0,0:750,900,280,280,0,0,1';
+                } elseif (existModifierWithKeyterm($item,'facing-in')) {
+                    $placement = 'x/125,500,200,800,0,0,1:875,500,200,800,0,0,0/x/250,200,280,280,0,0,1:750,200,280,280,0,0,0:250,900,280,280,0,0,1:750,900,280,280,0,0,0';
+                } else {
+                    $placement = 'x/125,500,200,800:875,500/250,200,300,280:750,200,300,280:500,1000/250,200,280,280:750,200,280,280:250,900:750,900/250,200,240,240:750,200,240,240:500,200:250,900:750,900';
+                }
+
+            }
           }
           // If our parent charge has a position, then we need to apply it to ourselves also
           $pos = getModifiersByTypeAsArray($item->parentNode->parentNode,'position');
@@ -752,6 +931,18 @@ function get_placement(DOMElement $item, $layout) {
           switch ( $arr ) {
             case 'inannulo':
                 $placement = inAnnulo($number, $boundingBox, $layout);
+                break;
+            case 'inuppersemi':
+                $placement = inAnnulo($number, $boundingBox, $layout, "upper");
+                break;
+            case 'inlowersemi':
+                $placement = inAnnulo($number, $boundingBox, $layout, "lower");
+                break;
+            case 'indextersemi':
+                $placement = inAnnulo($number, $boundingBox, $layout, "dexter");
+                break;
+            case 'insinistersemi':
+                $placement = inAnnulo($number, $boundingBox, $layout, "sinister");
                 break;
             case 'combattant':
                 $placement = placement_combattant($boundingBox, 0, 0);
@@ -788,7 +979,7 @@ function get_placement(DOMElement $item, $layout) {
                 $placement = calcPlace($item,'h',$boundingBox);
                 break;
             case 'inchevron':
-                $placement = placement_chevron($layout, 200, 0.8);
+                $placement = placement_chevron($layout, 200, 0.8, $item);
                 break;
             case 'incross':
                 $placement = placement_from_ordinary("plain-cross", $boundingBox, $layout);

@@ -292,7 +292,7 @@ function handle_extra($element, $extra, $featureColours, &$bounding_box)
 {
     $item = '';
 
-    if ( $element['id'] == 'crowned' ) { // crowns just use width, then drop to the bottom
+    if ( $element['id'] == 'crowned' || $element['id'] == 'gorged' ) { // crowns just use width, then drop to the bottom
         $scale = ($element['width'] / $extra['width']);
         $yAdjustment = $element['height'] - ($extra['height'] * $scale);
         $xAdjustment = 0;
@@ -307,7 +307,7 @@ function handle_extra($element, $extra, $featureColours, &$bounding_box)
     $transform->translate($element['x'] + $xAdjustment, $element['y'] + $yAdjustment);
     $transform->scale($scale);
 
-    if ( !($element['id'] == 'crowned') && isset($extra["bounding_box"]) )
+    if ( !($element['id'] == 'crowned' || $element['id'] == 'gorged') && isset($extra["bounding_box"]) )
     {
         $bb = $transform->apply_box($extra["bounding_box"]);
         $bounding_box->combine($bb);
@@ -315,8 +315,10 @@ function handle_extra($element, $extra, $featureColours, &$bounding_box)
 
     $item .= '<g transform="' . $transform->to_svg_transform() . '">';
 
-    if ( array_key_exists('crowned', $featureColours) )
+    if ( $element['id'] == 'crowned' && array_key_exists('crowned', $featureColours) )
         $item .= '<g fill="' . $featureColours['crowned'] . '">' . $extra['body'] . '</g>';
+    elseif ($element['id'] == 'gorged' && array_key_exists('gorged', $featureColours) )
+        $item .= '<g fill="' . $featureColours['gorged'] . '">' . $extra['body'] . '</g>';
     else
         $item .= $extra['body'];
 
@@ -329,7 +331,7 @@ function addChild(SimpleXMLElement $element, $featureColours, $chargeGroup, $cha
     $extras, $strokeCol, $strokeWidth, ShieldRect &$bounding_box, $fillSet = false ) {
     $name = $element->getName();
     if ( $name == "image" )
-        return $element->asXML();
+        return null;
     if ( in_array($name, array( 'metadata', 'defs', 'title' ) ))
         return null;
     if (( strpos($name,'sodipodi:') !== false ) or (strpos($name,'inkscape:') !== false ))
@@ -358,10 +360,12 @@ function addChild(SimpleXMLElement $element, $featureColours, $chargeGroup, $cha
     if (substr($id, 0, 8) == 'textPath') $item .= ' id="' . $id . '" '; // need this for the motto
     if ($id != null && substr($id, 0, 4) != 'path' && substr($id, 0, 5) != 'group') {
     // We allow multiple features with numeric flags at the end
-    $len = strlen($id);
+        $id = rtrim($id, "0123456789");
+        $id = rtrim($id, "-");
+/*    $len = strlen($id);
     if ($len >= 2 && $id[$len-2] == '-' && ctype_digit($id[$len-1])) {
       $id = substr($id, 0, $len - 2);
-    }
+    } */
     if (array_key_exists($id, $featureColours)) { // this is a feature with a given colour
       $class = "feature $id";
       $item .= ' fill="' . $featureColours[$id] . '" ';
@@ -407,14 +411,25 @@ function getSvgFragment ($svg, $featureTinctures, $chargeGroup, $chargeName, $ex
     global $messages, $options;
     $retval = array();
 
+    $viewBoxTransform = "";
+
     $viewbox = $svg['viewBox'] ?? '0 0 100 100';
-    list($x0,$y0,$x1,$y1) = explode(' ',$viewbox);
+    list($x0,$y0,$x1,$y1) = preg_split('/[ ,]/',$viewbox);
     // safety checks in case of dodgy SVG
     if (!is_numeric($x0)) $x0 = 0;
     if (!is_numeric($y0)) $y0 = 0;
     if (!is_numeric($x1)) $x1 = 100;
     if (!is_numeric($y1)) $y1 = 100;
 
+    // do we need to adapt for offset view box (e.g. traceable heraldic art)
+    if ( $x0 != 0 || $y0 != 0 )
+    {
+        $y1 -= $y0;
+        $x1 -= $x0;
+        $x0 *= -1;
+        $y0 *= -1;
+        $viewBoxTransform = "translate($x0,$y0)";
+    }
 
     $heightVal = $svg['height'] ?? $x1;
     if (substr($heightVal,-1) == '%')
@@ -440,12 +455,8 @@ function getSvgFragment ($svg, $featureTinctures, $chargeGroup, $chargeName, $ex
     $x0 += $bounding_box->left();
     $y0 += $bounding_box->top();
 
-    // do we need to adapt for offset view box (e.g. traceable heraldic art)
-    if ( $x0 != 0 || $y0 != 0 )
-    {
-        $x0 *= -1;
-        $y0 *= -1;
-        $fragment = "<g transform=\"translate($x0, $y0)\">$fragment</g>\n";
+    if ($viewBoxTransform != "") {
+        $fragment = "<g transform=\"$viewBoxTransform\">$fragment</g>\n";
     }
 
     $retval['body'] = $fragment;

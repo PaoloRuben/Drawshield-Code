@@ -90,6 +90,7 @@ function getMetaDataFromSVG($svg, $chargeGroup = '', $chargeName = '') {
     @$SVGmetadata = $svg->xpath('//dc:description');
     if ( is_array($SVGmetadata) and count($SVGmetadata) > 0) {
       foreach($SVGmetadata as $metaitem) {
+          $metaitem = (string)$metaitem;
           if (strlen($metaitem)) {
             if ($metaitem[0] == '{') { // treat it as JSON
               $json = @json_decode($metaitem, true);
@@ -154,6 +155,8 @@ function getBestMatchFilename($folder, $base, $mods, $warn = true) {
     if (substr($entry,-4) != '.svg') { continue; } // ignore non-svg files
     $filenameParts = preg_split('/(\.|-)/', $entry);
     $numFilenameParts = count($filenameParts) - 1; // last entry is 'svg', so ignore it
+      // if the final part is something like (1), (2) etc. ignore that too
+      if (preg_match("/([0-9])/",$filenameParts[$numFilenameParts])) $numFilenameParts -= 1;
     // Base name of the item MUST match
     if ($requiredParts[0] != $filenameParts[0]) { continue; }
 
@@ -171,7 +174,7 @@ function getBestMatchFilename($folder, $base, $mods, $warn = true) {
         // Some things we don't really care about
           // english is the default tradition, so no worries if it is not found
         if (!in_array($requiredParts[$i], array('english', 'voided', 'upper', 'lower', 'half', 'demi',
-            'winged', 'entire', 'head', 'leg', 'reversed', 'inverted' ))) {
+            'winged', 'entire', 'head', 'leg', 'reversed', 'inverted', 'slipped', 'leaved' ))) {
           $missing .= $requiredParts[$i] . ' ';
         }
       }
@@ -221,8 +224,11 @@ function featuresThatAreAlsoMods($node) {
     'claw',
     'leg',
     'clasped',
+    'slipped',
+    'leaved',
     'collared',
     'jessant',
+      'jessed',
       'leathered',
     'voided',
     'holding-nut',
@@ -268,7 +274,7 @@ function read_chg_file(DOMElement $node) {
     $subfolder = '';
     if (($title = $node->getAttribute('tokens')) == null ) $title = $chargeKey;
     $tincture = getTinctureNode($node);
-    if ($tincture != null && $tincture->firstChild->nodeName == blazonML::E_PROPER) {
+    if (!is_null($tincture) && !is_null($tincture->firstChild) && $tincture->firstChild->nodeName == blazonML::E_PROPER) {
         // Charge is proper let's see if there is a special version for this
         if (file_exists($folder . "proper/" . $chargeKey . '.svg')) {
             $subfolder .= "proper/";
@@ -506,23 +512,22 @@ function getCharge( DOMElement $node, $layout ) {
             $bounding_box = ShieldRect::from_corners(0, 0, $width, $height);
         }
   } else {
-    //-------------------------------------------------------------
-    $chg_ref = getModifierValueByKeyterm($node, 'chg_data');
-    if ( !array_key_exists($chg_ref, $chg_data_cache) )
-      $chg_data = read_chg_file($node);
-    else
-      $chg_data = $chg_data_cache[$chg_ref];
+        //-------------------------------------------------------------
+        $chg_ref = getModifierValueByKeyterm($node, 'chg_data');
+        if (!array_key_exists($chg_ref, $chg_data_cache))
+            $chg_data = read_chg_file($node);
+        else
+            $chg_data = $chg_data_cache[$chg_ref];
 
-    //-------------------------------------------------------------
-    
-    // Turn the svg_code into a SimpleXML object    
-    libxml_use_internal_errors(true);
-    if ( ($svg = @simplexml_load_string($chg_data['svgCode'], null, LIBXML_NOENT)) == null )
-    {
-        $messages->addMessage('internal',"XML error reading charge data");
-        error_log("XML error reading charge data - " . $chargeGroup . '/' . $chargeName);
-        // Fallback item
-        $svg = simplexml_load_string('<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+        //-------------------------------------------------------------
+
+        // Turn the svg_code into a SimpleXML object
+        libxml_use_internal_errors(true);
+        if (($svg = @simplexml_load_string($chg_data['svgCode'], null, LIBXML_NOENT)) == null) {
+            $messages->addMessage('internal', "XML error reading charge data");
+            error_log("XML error reading charge data - " . $chargeGroup . '/' . $chargeName);
+            // Fallback item
+            $svg = simplexml_load_string('<?xml version="1.0" encoding="UTF-8" standalone="no"?>
                     <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="100"
@@ -531,121 +536,133 @@ function getCharge( DOMElement $node, $layout ) {
                     <g style="fill:#ffff00;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:3;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" id="body"><path fill-rule="evenodd" d="M0,0h100v100h-100zM15,15h70v70h-70z" />
                     <text x="50" y="65" font-size="30" text-anchor="middle">????</text></g>
                     </svg>'
-        );
-    }
-    libxml_clear_errors();
-    //------------------------------------------------------------
+            );
+        }
+        libxml_clear_errors();
+        //------------------------------------------------------------
 
-    // Get metadata from the SVG
-    $chg_data = array_merge($chg_data,getMetaDataFromSVG($svg, $chargeName, $chargeGroup));
+        // Get metadata from the SVG
+        $chg_data = array_merge($chg_data, getMetaDataFromSVG($svg, $chargeName, $chargeGroup));
 
-    //------------------------------------------------------------
-    // Get all tincture related information
-    /**
-     * @var DOMElement $charge_col
-     */
-    $charge_col = null;
-    $strokeCol = null;
-    $feat_cols = array();
-    $defs = [];
-    $extras = [];
+        //------------------------------------------------------------
+        // Get all tincture related information
+        /**
+         * @var DOMElement $charge_col
+         */
+        $charge_col = null;
+        $strokeCol = null;
+        $feat_cols = array();
+        $defs = [];
+        $extras = [];
 
-    /**
-     * @var DOMElement $child
-     */
-    foreach ( $node->childNodes as $child ) { // TODO rewrite this logic?
-      switch ( $child->nodeName ) {
-        case 'tincture':
-          $charge_col = resolveReference($child);
-          break;
-        case 'modifier':
-          // TODO feature without child nodes, look for sibling feature with child nodes and use those?
-          if (($child->getAttribute('type') == 'feature') and $child->hasChildNodes()){
-            $featureTinc = $child->firstChild;
-            $featureTinc = resolveReference($featureTinc);
-            $featureName = $child->getAttribute('keyterm');
-            if ($featureTinc == null || !$featureTinc->hasChildNodes())
-              $messages->addMessage('Warning',"No tincture for $featureName");
-            else {
-              $tinctureType = $featureTinc->firstChild;
-              switch ($tinctureType->nodeName) {
-                case 'proper':
-                  $feat_cols[$featureName] = getProper($chargeGroup, $chargeName, $featureName);
-                  break;
-                default:
-                    $feat_cols[$featureName] = rgb($tinctureType->getAttribute('keyterm'));
-
-                    $tincture_data = new TinctureData($featureTinc);
-                    $tincture_data->pattern_transform = "scale(0.5)";
-                    $tincture_data->parse_fill($layout);
-                    if ( $tincture_data->fill )
-                    {
-                        $feat_cols[$featureName] = $tincture_data->fill;
-                        $defs = array_merge($defs, $tincture_data->defs);
-                    }
+        /**
+         * @var DOMElement $child
+         */
+        foreach ($node->childNodes as $child) { // TODO rewrite this logic?
+            switch ($child->nodeName) {
+                case 'tincture':
+                    $charge_col = resolveReference($child);
                     break;
-              }
-            }
-          } elseif ($child->getAttribute(blazonML::A_KEYTERM) == 'stroked') {
-              $strokeCol = rgb($child->getAttribute(blazonML::A_PARAM));
-          } else if ( $child->getAttribute('type') == languageDB::HOLDING and $child->hasChildNodes() ){
-            $chargeToAdd = $child->firstChild;
-            if ( $chargeToAdd->nodeName == 'missing' || $chargeToAdd->nodeName == 'ordinary' )
-                break;
-            $chargeWithType = $child->getAttribute('keyterm');
-            $extras[$chargeWithType] = getCharge($chargeToAdd, $layout);
-        }
-      }
-    }
-    //--------------------------------------------------------------------------
+                case 'modifier':
+                    // TODO feature without child nodes, look for sibling feature with child nodes and use those?
+                    if (($child->getAttribute('type') == 'feature') and $child->hasChildNodes()) {
+                        $featureTinc = $child->firstChild;
+                        $featureTinc = resolveReference($featureTinc);
+                        $featureName = $child->getAttribute('keyterm');
+                        if ($featureTinc == null || !$featureTinc->hasChildNodes())
+                            $messages->addMessage('Warning', "No tincture for $featureName");
+                        else {
+                            $tinctureType = $featureTinc->firstChild;
+                            switch ($tinctureType->nodeName) {
+                                case 'proper':
+                                    $feat_cols[$featureName] = getProper($chargeGroup, $chargeName, $featureName);
+                                    break;
+                                default:
+                                    $feat_cols[$featureName] = rgb($tinctureType->getAttribute('keyterm'));
 
-    //--------------------------------------------------------------------------
-    // Proper handling for body
-    // By this point, $proper contains the proper colour code for the body (if given).
-    // $feat_cols contains a array of named features => colour codes
-    // We will now work out the actual colours to be used for the body and any unnamed features
-    $body_col = null;
-    if ( $charge_col != null ) { 
-      if ( $charge_col->hasChildNodes()) {
-        $col_type = $charge_col->firstChild;
-        if ( $col_type->nodeName == 'proper' ) {
-            if (isset($chg_data['proper'])) { // TODO handle proper as an array, with this one as 'body'
-                $body_col = rgb($chg_data['proper']);
+                                    $tincture_data = new TinctureData($featureTinc);
+                                    $tincture_data->pattern_transform = "scale(0.5)";
+                                    $tincture_data->parse_fill($layout);
+                                    if ($tincture_data->fill) {
+                                        $feat_cols[$featureName] = $tincture_data->fill;
+                                        $defs = array_merge($defs, $tincture_data->defs);
+                                    }
+                                    break;
+                            }
+                        }
+                    } elseif ($child->getAttribute(blazonML::A_KEYTERM) == 'stroked') {
+                        $strokeCol = rgb($child->getAttribute(blazonML::A_PARAM));
+                    } else if ($child->getAttribute('type') == languageDB::HOLDING and $child->hasChildNodes()) {
+                        $chargeToAdd = $child->firstChild;
+                        if ($chargeToAdd->nodeName == 'missing' || $chargeToAdd->nodeName == 'ordinary')
+                            break;
+                        $chargeWithType = $child->getAttribute('keyterm');
+                        $extras[$chargeWithType] = getCharge($chargeToAdd, $layout);
+                    }
+            }
+        }
+        //--------------------------------------------------------------------------
+
+        //--------------------------------------------------------------------------
+        // Proper handling for body
+        // By this point, $proper contains the proper colour code for the body (if given).
+        // $feat_cols contains a array of named features => colour codes
+        // We will now work out the actual colours to be used for the body and any unnamed features
+        $body_col = null;
+        if ($charge_col != null) {
+            if ($charge_col->hasChildNodes()) {
+                $col_type = $charge_col->firstChild;
+                if ($col_type->nodeName == 'proper') {
+                    if (isset($chg_data['proper'])) { // TODO handle proper as an array, with this one as 'body'
+                        if (is_array($chg_data['proper'])) {
+                            foreach ($chg_data['proper'] as $feature => $value) {
+                                if ($feature == 'body') {
+                                    $body_col = $value;
+                                } else {
+                                    $feat_cols[$feature] = $value;
+                                }
+                            }
+                        } else {
+                            $body_col = rgb($chg_data['proper']);
+                        }
+                    } else {
+                        $body_col = getProper($chargeGroup, $chargeName, null, !$chg_data['verbatim']);
+                    }
+                    $col_type->setAttribute('spec', $body_col);
+                    $feat_cols['proper'] = true; // Also use proper for any features not coloured explicitly
+                }
+            }
+        }
+        //------------------------------------------------------------------------------
+        // set a default stroke colour based on whether the body colour is light or dark
+        if (!$chg_data['verbatim'] && !$strokeCol)
+            $strokeCol = getStroke($charge_col, array_key_exists('fixStroke', $chg_data));
+
+        //------------------------------------------------------------------------------
+        // Charges "internal" to this one
+
+        // Special handling for charges "crowned"
+    $crowns = getModifiersByTypeAsArray($node, languageDB::CROWN_MODS, true);
+    foreach ($crowns as $crown) {
+            // if ( $crown = getModifierNodeWithKeyterm($node, 'crowned', false) ) {
+            $crownType = $crown->getAttribute('value');
+            $modType = $crown->getAttribute('keyterm'); // crowned, gorged or wreathed
+            if ($crownType == 'default') $crownType = 'ducal';
+            $crownCol = $charge_col;
+            if ($temp = getTinctureNode($crown)) {
+                $crownCol = $temp;
+                $feat_cols[$modType] = get_rgb($crownCol);
+            }
+            $crownFile = __dir__ . '/components/crown-as-worn/' . $crownType . '.svg';
+            if (!file_exists($crownFile)) {
+                $crownFile = __dir__ . '/charges/crown/' . $crownType . '.svg';
+            }
+            if (!file_exists($crownFile)) {
+                $messages->addMessage('internal', "No crown file for $crownType");
             } else {
-                $body_col = getProper($chargeGroup, $chargeName, null, !$chg_data['verbatim']);
+                $extras[$modType] = getSvgFragment(simplexml_load_file($crownFile),
+                    array(), 'crown', $crownType, array(), getStroke($crownCol), 2); // multiply size of crown strokes
             }
-          $col_type->setAttribute('spec', $body_col);
-          $feat_cols['proper'] = true; // Also use proper for any features not coloured explicitly
-        }
-      }
-    }
-    //------------------------------------------------------------------------------
-    // set a default stroke colour based on whether the body colour is light or dark
-    if ( !$chg_data['verbatim'] && !$strokeCol)
-        $strokeCol = getStroke($charge_col, array_key_exists('fixStroke',$chg_data)); 
-
-    //------------------------------------------------------------------------------
-    // Charges "internal" to this one
-
-    // Special handling for charges "crowned"
-    if ( $crown = getModifierNodeWithKeyterm($node, 'crowned', false) ) {
-      $crownType = $crown->getAttribute('value');
-      if ($crownType == 'default') $crownType = 'ducal';
-      $crownCol = $charge_col;
-      if ($temp = getTinctureNode($crown)) {
-          $crownCol = $temp;
-          $feat_cols['crowned'] = get_rgb($crownCol);
-      }
-      $crownFile = __dir__ . '/components/crown-as-worn/' . $crownType . '.svg';
-      if (!file_exists($crownFile)) {
-        $crownFile = __dir__ . '/charges/crown/' . $crownType . '.svg';
-      }
-      if (!file_exists($crownFile)) {
-       $messages->addMessage('internal', "No crown file for $crownType"); 
-      } else {
-        $extras['crowned'] = getSvgFragment(simplexml_load_file($crownFile),
-            array(), 'crown', $crownType, array(), getStroke($crownCol), 2); // multiply size of crown strokes
-      }
     }
     if ( $inscribe = getModifierNodeWithKeyterm($node, 'inscribed' ) ) {
       $extras['inscribed']['body'] = makeSquareCharge($inscribe->firstChild);
@@ -807,7 +824,7 @@ HERE;
     // What type of "on" is this?
     $chargeWithType = $chargeOn->getAttribute('keyterm');
     if ($chargeWithType == 'charged-each') {
-      $num_of = getModifierValueByKeyterm($node, 'of-num');
+      $num_of = getModifierValueByKeyterm($node, 'ofnum');
       if ($num_of > 0) {
       }
       $chargeWithType = 'charged-with';

@@ -294,8 +294,8 @@ class TinctureData
 
     static function fix_url($fill)
     {
-        if ( $fill && $fill[0] == '"' )
-            return "url(" . substr($fill, 1, -1) . ")";
+        if ( $fill && ($fill[0] == '"' || $fill[0] == "'"))
+            return "url('/" . substr($fill, 1, -1) . "')";
         return $fill;
     }
 
@@ -337,7 +337,7 @@ class TinctureData
                 {
                     // set if we are to use the fill found
                     if ( substr($this->fill, 0, 4) == 'url(')
-                        $this->mask = substr($this->fill, 4, -1);
+                        $this->mask = substr($this->fill, 6, -2);
                 }
                 break;
             case 'fur':
@@ -440,9 +440,17 @@ function apply_tincture ($tinctureNode, $targetSVG, ShieldLayout $layout, Shield
         $data->pattern_transform = ' scale(0.5) ';
     }
 
-    // If the object is rotated, we rotate some of the tinctures to match_number()
+    // If the object is rotated, we rotate some of the tinctures
+    // There are 3 options for the value of the $rot parameter:
+    // 1) 0 - no action
+    // 2) A number (e.g. 45) - causes a fixed rotation by that number of degrees
+    // 3) A string - this is assumed to be a valid SVG transform which is applied to the pattern
     if ( $rot != '0' )
-        $data->pattern_transform .= ' rotate(' . ($rot * -1) . ') ';
+        if (is_int($rot)) {
+            $data->pattern_transform .= ' rotate(' . ($rot * -1) . ') ';
+        } else {
+            $data->pattern_transform .= " $rot ";
+        }
 
     // Nothing to do
     if ( $data->node != null && $data->node->getAttribute('origin') == 'implied' )

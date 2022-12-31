@@ -19,6 +19,7 @@ This file is part of the DrawShield.net heraldry image creation program
 //
 // Global Variables
 //
+$startTime = microtime(true);
 $options = array();
 include 'version.inc';
 include 'parser/utilities.inc';
@@ -36,15 +37,73 @@ $xpath = null;
  */
 $messages = null;
 
-$spareRoom = str_repeat('*', 1024 * 1024);
-$size = 500;
 
 //
 // Argument processing
 //
+
+function arguments($args) {
+    array_shift($args);
+    $endofoptions = false;
+    $ret = array(
+        // 'commands' => array(),
+        'options' => array(),
+        'flags' => array(),
+        'arguments' => array(),
+    );
+    while ($arg = array_shift($args)) {
+        // if we have reached end of options,
+        //we cast all remaining argvs as arguments
+        if ($endofoptions) {
+            $ret['arguments'][] = $arg;
+            continue;
+        }
+        // Is it a command? (prefixed with --)
+        if (substr($arg, 0, 2) === '--') {
+            // is it the end of options flag?
+            if (!isset($arg[3])) {
+                $endofoptions = true;; // end of options;
+                continue;
+            }
+            $value = "";
+            $com = substr($arg, 2);
+            // is it the syntax '--option=argument'?
+            if (strpos($com, '='))
+                list($com, $value) = explode("=", $com, 2);
+            // is the option not followed by another option but by arguments
+            elseif(strpos($args[0], '-') !== 0) {
+                while (strpos($args[0], '-') !== 0)
+                    $value .= array_shift($args) . ' ';
+                $value = rtrim($value, ' ');
+            }
+            $ret['options'][$com] = !empty($value) ? $value : true;
+            continue;
+        }
+        // Is it a flag or a serial of flags? (prefixed with -)
+        if (substr($arg, 0, 1) === '-') {
+            for ($i = 1; isset($arg[$i]); $i++)
+                $ret['flags'][] = $arg[$i];
+            continue;
+        }
+        // finally, it is not option, nor flag, nor argument
+        //$ret['commands'][] = $arg;
+        $ret['arguments'][] = $arg;
+        continue;
+    }
+    //if (!count($ret['options']) && !count($ret['flags'])) {
+      //  $ret['arguments'] = array_merge($ret['commands'], $ret['arguments']);
+      //  $ret['commands'] = array();
+    //}
+    return $ret;
+}
+
 if (isset($argc)) {
   if ( $argc > 1 ) { // run in debug mode, probably
-    $options['blazon'] = implode(' ', array_slice($argv,1));
+      $myArgs = arguments($argv);
+      foreach($myArgs['options'] as $option => $value) {
+        $options[$option] = $value;
+      }
+    $options['blazon'] = implode(' ', $myArgs['arguments']);
   } else {
   if (file_exists('debug.inc')) include 'debug.inc';
   }
@@ -52,8 +111,6 @@ if (isset($argc)) {
 
 // Process arguments
 $ar = null;
-$size = null;
-
 $request = array_merge($_GET, $_POST);
 
 // For backwards compatibility we support argument in GET, but prefer POST
@@ -66,7 +123,7 @@ if (isset($_FILES['blazonfile']) && ($_FILES['blazonfile']['name'] != "")) {
         $options['blazon'] = file_get_contents($fileTmpName);
     }
 } else {
-    if (isset($request['blazon'])) $options['blazon'] = strip_tags(trim($request['blazon']));
+    if (isset($request['blazon'])) $options['blazon'] = strip_tags($request['blazon']);
 }
 
 if (isset($request['outputformat'])) $options['outputFormat'] = strip_tags ($request['outputformat']);
@@ -92,18 +149,6 @@ if (isset($request['customPalette']) && is_array($request['customPalette'])) $op
 $options['blazon'] = preg_replace("/&#?[a-z0-9]{2,8};/i","",$options['blazon']); // strip all entities.
 $options['blazon'] = preg_replace("/\\x[0-9-a-f]{2}/i","",$options['blazon']); // strip all entities.
 
- register_shutdown_function(function()
-    {
-        global $options, $spareRoom;
-        $spareRoom = null;
-        if ((!is_null($err = error_get_last()))  
-              && (!in_array($err['type'], array (E_NOTICE, E_WARNING))) // comment this line to get all
-               )
-        {
-           error_log($err['message'] . " (" . $err['type'] . ") at " . $err['file'] . ":" . $err['line'] . ' - ' ); // . $options['blazon']);
-        }
-    });
-
 // Quick response for empty blazon
 if ( $options['blazon'] == '' ) {
   $dom = new DOMDocument('1.0');
@@ -119,9 +164,10 @@ if ( $options['blazon'] == '' ) {
       $note = $dom->createComment("Debug information - parser stage.\n(Did you do SHIFT + 'Save as File' by accident?)");
       $dom->insertBefore($note,$dom->firstChild);
       header('Content-Type: text/xml; charset=utf-8');
-      $dom->outputFormat = true;
-      echo $dom->saveXML(); 
-      exit; 
+      $dom->formatOutput = true;
+      echo $dom->saveXML();
+      echo  "Execution time: " . microtime(true) - $startTime;
+      exit;
   }
   // filter blazon (if present)
   if (file_exists("/var/www/etc/filter.inc")) {
@@ -139,7 +185,7 @@ if ( $options['blazon'] == '' ) {
       $note = $dom->createComment("Debug information - references stage.\n(Did you do SHIFT + 'Save as File' by accident?)");
       $dom->insertBefore($note,$dom->firstChild);
       header('Content-Type: text/xml; charset=utf-8');
-      $dom->outputFormat = true;
+      $dom->formatOutput = true;
       echo $dom->saveXML(); 
       exit; 
   }
@@ -200,7 +246,7 @@ function report_errors_svg($errno, $errstr, $errfile, $errline)
     return false;
 }
 
-if (array_key_exists('HTTP_REFERER',$_SERVER) && strpos($_SERVER["HTTP_REFERER"], "demopage.php") !== false )
+// if (array_key_exists('HTTP_REFERER',$_SERVER) && strpos($_SERVER["HTTP_REFERER"], "demopage.php") !== false )
     set_error_handler("report_errors_svg");
 
 $output = draw();
@@ -216,7 +262,8 @@ if ($options['asFile'] == '1') {
     } elseif ($options['units'] == 'cm') {
         $options['printSize'] *= 35;
     }
-    $proportion = ($options['shape'] == 'flag') ? $options['aspectRatio'] : 1.2;
+    // $proportion = ($options['shape'] == 'flag') ? $options['aspectRatio'] : 1.2;
+    $proportion = 1.2;
     switch ($options['saveFormat']) {
         case 'svg':
             if (substr($name, -4) != '.svg') $name .= '.svg';
@@ -425,4 +472,5 @@ if ($options['asFile'] == '1') {
             break;
     }
 }
+
 

@@ -210,6 +210,7 @@ function makePath2 ( $shapeSpec, $lineType, $size = 60 ) {
     'angled' => '0:100:i:o:h50v-{S}h50:O1',
     'angled-upper' => '0:100:o:i:h50v{S}h50:O1',
     'arched' => '1:{D}:i:i:c {D/2},-{S*2} {D/2},-{S*2} {D},0:R1',
+    'bowed' => '1:{D}:i:i:c {D/2},{S*2} {D/2},{S*2} {D},0:R1',
     'battled-ghibelline' => '*:{S*4}:i:i:h{S} v-{S*2} c0,0 {S},{S*0.37} {S},{S*0.9} 0,-{S*0.58} {S},-{S*0.90} {S},-{S*0.9} v{S*2} h{S}:U1',
     'embattled-arrondi' => '*:{S*4}:i:i:h{S} v-{S} c0,-{S} {S*2},-{S} {S*2},0 v{S} h{S}:U1',
     'cupolaed' => '*:{S*4}:i:i:h{S} v-{S} h{S/2} c0,-{S/2} {S},-{S/2} {S},0 h{S/2} v{S} h{S}:U1',
@@ -619,10 +620,9 @@ c
       if ( $start != '-' ) $start = ($start == 'o') ? 'i' : 'o';
       if ( $end != '-' ) $end = ($end == 'o') ? 'i' : 'o';
     }
-    if ($lineType == 'none' or 
-        ctype_lower($dir) or 
-        (($upperOnly == true ) and ($angle >45) and ($angle < 315)) or
-        $length > $dist ) { // straight, or cannot fit this path into distance
+    if ($lineType == 'none' || 
+        ctype_lower($dir) || 
+        (($upperOnly == true ) && ($angle >45) && ($angle < 315))) {
       $dir = strtolower($dir);
       $start = '-';
       $end = '-';
@@ -663,6 +663,11 @@ c
     $path = preg_replace_callback('/{D.*?}/', 'subFunc', $spec);
     $len = preg_replace_callback('/{D.*?}/', 'subFunc', $length);
     $angle = dir2angle($dir);
+    if ($len > $dist ) { // straight, or cannot fit this path into distance
+      $dir = strtolower($dir);
+      $start = '-';
+      $end = '-';
+    }
     if ( $doMirror )
       $path = mirrorPath($path,'x');
     // Stretch if required to fit

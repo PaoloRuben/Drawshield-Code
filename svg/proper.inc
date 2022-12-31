@@ -76,6 +76,7 @@ class properColour {
     );
     self::$charges = array(
         'group' => self::$gray,  // dummy value, group is not visible
+        'rainbow' => self::$gray,  // dummy value, rainbow has rainbow colours!
         'peacock' => $hatching ? self::$blue : '#0020c2',
         'chaplet' => self::$green,
         'grassy-mound' => self::$green,
@@ -148,6 +149,7 @@ class properColour {
       'american-football' => self::$brown,
       'basketball' => self::$orange,
       'baseball-glove' => self::$brown,
+        'cock' => self::$brown,
       'baseball' => self::$white,
       'pelican' => self::$white,
       'mitre' => self::$yellow,
@@ -168,7 +170,9 @@ class properColour {
         'condor/necked' => self::$caucasian,
         'condor/legged' => self::$caucasian,
         'condor/beaked' => self::$yellow,
-        'condor/jelloped' => self::$red,
+        'jelloped' => self::$red,
+        'cock/legged' => self::$yellow,
+        'cock/beaked' => self::$yellow,
         'condor/armed' => self::$gray,
         'chaplet/slipped' => self::$red,
         'chaplet/leaved' => self::$green,
@@ -186,8 +190,6 @@ class properColour {
       'chough/legged' => self::$red,
       'chough/beaked' => self::$red,
       'rubber-duck/beaked' => self::$red,
-      'dove/legged' => self::$red,
-      'dove/beaked' => self::$red,
       'starling/legged' => self::$red,
       'starling/beaked' => self::$red,
       'fructed' => self::$red,
@@ -216,6 +218,7 @@ class properColour {
       'rocket/inflamed' => self::$red,
       'zebra/striped' => self::$black,
       'zebra/unguled' => self::$black,
+        'unguled' => self::$grey,
       'vulning' => self::$red,
       'nest' => self::$brown,
       'rose-lancaster/seeded' => self::$white,

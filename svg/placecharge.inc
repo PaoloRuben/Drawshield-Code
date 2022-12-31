@@ -161,7 +161,7 @@ function place_charges ( DOMElement $node, $placement, $layout ) {
         $bbx = 1000;
         $bby = 200;
       }
-      $retval .= PlaceCharge( $item, $layout, $bbx, $bby, $cx, $cy, $rot, $inv, $rev );
+      $retval .= PlaceCharge( $item, $layout, $bbx, $bby, $cx, $cy, $count + 1,$rot, $inv, $rev );
     }
   return $retval;
 }
@@ -242,10 +242,10 @@ class PlacementHints
             case 'lowered':
                 $this->offset_y += 60;
                 break;
-            case 'to-dexter':
+            case 'dexter':
                 $this->offset_x -= 50;
                 break;
-            case 'to-sinister':
+            case 'sinister':
                 $this->offset_x += 50;
                 break;
             case 'slightly-smaller':
@@ -262,10 +262,10 @@ class PlacementHints
             case 'slightly-lowered':
                 $this->offset_y += 30;
                 break;
-            case 'slightly-to-dexter':
+            case 'slightly-dexter':
                 $this->offset_x -= 25;
                 break;
-            case 'slightly-to-sinister':
+            case 'slightly-sinister':
                 $this->offset_x += 25;
                 break;
             case 'much-smaller':
@@ -282,10 +282,10 @@ class PlacementHints
             case 'much-lowered':
                 $this->offset_y += 120;
                 break;
-            case 'much-to-dexter':
+            case 'much-dexter':
                 $this->offset_x -= 100;
                 break;
-            case 'much-to-sinister':
+            case 'much-sinister':
                 $this->offset_x += 100;
                 break;
             case 'very-much-smaller':
@@ -302,10 +302,10 @@ class PlacementHints
             case 'very-much-lowered':
                 $this->offset_y += 240;
                 break;
-            case 'very-much-to-dexter':
+            case 'very-much-dexter':
                 $this->offset_x -= 200;
                 break;
-            case 'very-much-to-sinister':
+            case 'very-much-sinister':
                 $this->offset_x += 200;
                 break;
             case 'narrower':
@@ -365,6 +365,7 @@ function PlaceCharge ( $node,  // images
                             $layout,
                             $boundX, $boundY,  // size of bounding box
                             $centreX, $centreY,// centre of bounding box
+                            $index = 1,
                             $rotation = 0,
                             $inverted = false,
                             $reversed = false ) {
@@ -372,7 +373,7 @@ function PlaceCharge ( $node,  // images
   $charge = getCharge( $node, $layout );
   if ($charge == null) return '';
   $orientation = null;
-  $tincture = null;
+  $tinctures = [];
   $Xflex = array_key_exists('wflex', $charge) ? $charge['wflex'] : 1;
   $Yflex = array_key_exists('hflex', $charge) ? $charge['hflex'] : 1;
   $inArrangement = false;
@@ -410,18 +411,21 @@ function PlaceCharge ( $node,  // images
             break;
       }
     } elseif ( $child->nodeName == 'tincture' ) {
-      $tincture = $child;
+      $tinctures[intval($child->getAttribute(blazonML::A_INDEX))] = $child;
     }
   }
+  // Now try to map the index we are given to the list of tinctures provided
+    if (isset($tinctures[$index])) { // exact match
+        $tincture = $tinctures[$index];
+    } else {
+       $indexes = array_keys($tinctures);
+       $tincture = $tinctures[$indexes[($index - 1) % count($indexes)]];
+    }
 
   // sometimes we can ignore the orientation as we are already "that way up"
   if ($charge['group'] != 'quadrate' && $orientation == $situation) $orientation = null;
 
     $shownRotation = $hints->angle;
-    $boundX *= $hints->scale_x;
-    $boundY *= $hints->scale_y;
-    $centreY += $hints->offset_y;
-    $centreX += $hints->offset_x;
 
   $BoundAR = 1;
   if ($boundY != 0) {
@@ -449,7 +453,7 @@ function PlaceCharge ( $node,  // images
     $rotation = 0; // An explicit charge orientation overrides a rotation from the arrangement
     switch ( $orientation ) {
       case 'fesswise':
-          $retval = "<g transform=\"translate(0,$chargeY) rotate(-90)\"><desc>fesswise charge</desc>$retval</g>\n";
+          $retval = "<g transform=\"translate(0,$chargeX) rotate(-90)\"><desc>fesswise charge</desc>$retval</g>\n";
           $temp = $chargeX; $chargeX = $chargeY; $chargeY = $temp;
           $temp = $Xflex; $Xflex = $Yflex; $Yflex = $temp;
         break;
@@ -530,6 +534,10 @@ function PlaceCharge ( $node,  // images
       }
     }
   }
+    $Xscale *= $hints->scale_x;
+    $Yscale *= $hints->scale_y;
+    $centreY += $hints->offset_y;
+    $centreX += $hints->offset_x;
   $sizeX = $chargeX * $Xscale;
   $sizeY = $chargeY * $Yscale;
   $posX = $centreX - ($sizeX / 2);
